@@ -9,7 +9,12 @@ TOKEN = "754509199:AAGkdMpcacXSQ7ow4-wZ_fZbDbNaedosFa4"
 URL = "https://api.telegram.org/bot{}/".format(TOKEN)
 face_frontal_cascade = cv2.CascadeClassifier("haarcascade_frontalface_alt.xml")
 subjects = ["Brad", "Simone"]
+lab_access_today = []
 group_chat_id = None
+
+face_frontal_cascade = cv2.CascadeClassifier("haarcascade_frontalface_alt.xml")
+subjects = ["brad", "Simone"]
+lables = {}
 
 def main():
     bot = telegram.Bot(token='754509199:AAGkdMpcacXSQ7ow4-wZ_fZbDbNaedosFa4')
@@ -25,16 +30,8 @@ def main():
 
     intruder_count = 0
 
-    print(bot)
-
-    print("no man")
-
-    faces, labels = prep_train("Portrait_database")
-    print ("total faces:", len(faces))
-    print("total labels:", len(labels))
-
     face_recognizer = cv2.face.LBPHFaceRecognizer_create()
-    face_recognizer.train(faces, np.array(labels))
+    face_recognizer.read("trainer.yml")
 
     cap = cv2.VideoCapture(0)
     while(True):
@@ -50,19 +47,25 @@ def main():
             if ((label[0] == 0) and (label[1] <=90)):
                 frame = cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 50), 2)
                 cv2.putText(frame, "Brad", (x, y), cv2.FONT_HERSHEY_PLAIN, 1.5, (0, 255, 0), 2)
+                if( label[0] not in lab_access_today):
+                    lab_access_today.append("Brad")
                 break
             if ((label[0] == 1) and (label[1] <=90)):
                 frame = cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 50), 2)
                 cv2.putText(frame, "Simone", (x, y), cv2.FONT_HERSHEY_PLAIN, 1.5, (0, 255, 0), 2)
+                if (label[0] not in lab_access_today):
+                    lab_access_today.append("Simone")
                 break
             else:
                 frame = cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 0, 255), 2)
                 cv2.putText(frame, "INTRUDER", (x, y), cv2.FONT_HERSHEY_PLAIN, 1.5, (0, 0, 255), 2)
                 intruder_count = intruder_count + 1
-                if group_chat_id != None and intruder_count > 50:
+                if group_chat_id != None and intruder_count > 100:
                     cv2.imwrite("intruder.png", face_grey)
                     motion(bot, group_chat_id)
                     intruder_count = 0
+                    if(3 not in lab_access_today):
+                        lab_access_today.append("Intruder!")
 
             #cv2.imshow('BRG_face_coord', BRG_face_coord)
                 #print(id_)
@@ -73,47 +76,6 @@ def main():
     #run for loop for each rectagle in list (note for loop has 4 arguments) ->face_coordinate
         cv2.imshow('frame', frame)
         cv2.waitKey(20)
-
-def detect_face(image):
-    frame_grey = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    faces = face_frontal_cascade.detectMultiScale(frame_grey, scaleFactor=1.1, minNeighbors=5)
-    print(len(faces))
-    if (len(faces) == 0):
-        return None, None
-    (x, y, w, h) = faces[0]
-    return frame_grey[y:y + h, x: x + w], faces[0]
-
-def prep_train (data_folder_path):
-    base_directory = os.path.dirname(os.path.abspath(__file__))
-    image_directory = os.path.join(base_directory, data_folder_path)
-
-    curr_id = 0
-    label_ids = {}
-    faces = []
-    label = []
-
-    for root, dirs, files in os.walk(image_directory):
-        for file in files:
-            if file.endswith("jpeg") or ("jpg"):
-                path = os.path.join(root, file)
-                name = os.path.basename(os.path.dirname(path)).replace(" ", "_").lower()
-                if not name in label_ids:
-                    label_ids[name] = curr_id
-                    curr_id += 1
-                id_ = label_ids[name]
-                img_temp = cv2.imread(path)
-                img = cv2.resize(img_temp, (360, 480))
-                face, rect = detect_face(img)
-                print(id_)
-
-
-                if face is not None:
-                    faces.append(face)
-                    label.append(id_)
-
-
-    return faces, label
-
 
 def unknown(bot, update):
     bot.send_message(chat_id=update.message.chat_id, text="Invalid input message")
@@ -142,7 +104,7 @@ def verified(bot, update):
 
 def report(bot, update):
     str = "Users seen in the lab today:\n"
-    for i in subjects:
+    for i in lab_access_today:
         str += i + "\n"
     bot.send_message(chat_id=update.message.chat_id, text=str)
 
